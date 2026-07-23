@@ -33,18 +33,15 @@ try {
   );
 
   if (!existsSync(outputFile)) {
-    console.error(`FAIL: Output file not found at ${outputFile}`);
-    process.exit(1);
+    throw new Error(`FAIL: Output file not found at ${outputFile}`);
   }
 
   const output = readFileSync(outputFile, "utf-8");
   if (!output.includes("class MyExtension")) {
-    console.error("FAIL: Output does not contain expected class");
-    process.exit(1);
+    throw new Error("FAIL: Output does not contain expected class");
   }
   if (!output.includes("hello")) {
-    console.error("FAIL: Output does not contain hello function");
-    process.exit(1);
+    throw new Error("FAIL: Output does not contain hello function");
   }
 
   console.log("\nAll tests passed!");
