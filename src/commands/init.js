@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -32,6 +32,13 @@ export async function initCommand() {
       writeFileSync(destPath, content, "utf-8");
       console.log(`Created ${file}`);
     }
+  }
+
+  const templateAssetsDir = join(TEMPLATES_DIR, "assets");
+  const destAssetsDir = join(process.cwd(), "assets");
+  if (!existsSync(destAssetsDir)) {
+    cpSync(templateAssetsDir, destAssetsDir, { recursive: true });
+    console.log("Created assets/");
   }
 
   console.log(

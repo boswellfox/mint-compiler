@@ -5,6 +5,7 @@ import { readManifest } from "../utils/manifest.js";
 import { getGitRemoteUrl } from "../utils/git.js";
 import { generateHeader } from "../utils/header.js";
 import { extractSourceFiles, buildClassSource } from "../utils/transformer.js";
+import { loadAssets, generateAssetsRuntime } from "../utils/assets.js";
 
 export async function buildCommand() {
   const cwd = process.cwd();
@@ -21,6 +22,13 @@ export async function buildCommand() {
 
   console.log("Reading manifest...");
   const manifest = readManifest(srcDir);
+
+  console.log("Loading assets...");
+  const assets = loadAssets(cwd);
+  const assetCount = Object.keys(assets).length;
+  if (assetCount > 0) {
+    console.log(`  Found ${assetCount} asset(s)`);
+  }
 
   console.log("Extracting and tree-shaking source files...");
   const { functions, importedFunctions } = extractSourceFiles(entryPoint);
@@ -42,12 +50,14 @@ export async function buildCommand() {
   console.log("Generating header...");
   const header = generateHeader(manifest, repoUrl);
 
+  const mintRuntime = generateAssetsRuntime(assets);
+
   const iife = `${header}
 
 (function (Scratch) {
   "use strict";
 
-${classCode}
+${mintRuntime ? mintRuntime + "\n\n" : ""}${classCode}
 
   Scratch.extensions.register(new ${manifest.class}());
 })(Scratch);`;
