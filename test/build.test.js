@@ -94,7 +94,7 @@ try {
     "Output missing base64 data URI for SVG",
   );
   assert(
-    outputWithAssets.includes("icon.svg"),
+    /(?:["'])icon\.svg(?:["'])\s*:/.test(outputWithAssets),
     "Output missing root asset key",
   );
   assert(
