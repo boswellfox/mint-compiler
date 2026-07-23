@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "fs";
 import { join } from "path";
 
 const MIME_TYPES = {
@@ -52,10 +52,13 @@ export function loadAssets(projectDir) {
       continue;
     }
     const filePath = join(assetsDir, entry);
+    if (!statSync(filePath).isFile()) {
+      continue;
+    }
     const buffer = readFileSync(filePath);
     const base64 = buffer.toString("base64");
     const mimeType = getMimeType(filePath);
-    assets[name] = `data:${mimeType};base64,${base64}`;
+    assets[entry] = `data:${mimeType};base64,${base64}`;
   }
 
   return assets;

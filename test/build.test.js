@@ -64,8 +64,14 @@ try {
   const assetsDir = join(tmpDir, "assets");
   mkdirSync(assetsDir, { recursive: true });
   writeFileSync(
-    join(assetsDir, "favicon.svg"),
+    join(assetsDir, "icon.svg"),
     '<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>',
+    "utf-8",
+  );
+  mkdirSync(join(assetsDir, "icons"), { recursive: true });
+  writeFileSync(
+    join(assetsDir, "icons", "icon.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10"/></svg>',
     "utf-8",
   );
 
@@ -88,8 +94,12 @@ try {
     "Output missing base64 data URI for SVG",
   );
   assert(
-    outputWithAssets.includes("favicon.svg"),
-    "Output missing asset filename",
+    outputWithAssets.includes("icon.svg"),
+    "Output missing root asset key",
+  );
+  assert(
+    outputWithAssets.includes("icons/icon.svg"),
+    "Output missing nested asset key",
   );
   console.log("  PASS");
   passed++;
