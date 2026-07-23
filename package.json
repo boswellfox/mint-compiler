@@ -1,0 +1,41 @@
+{
+  "name": "mint-compiler",
+  "version": "0.1.0",
+  "description": "A toolchain for compiling multiple JavaScript modules into a single TurboWarp extension",
+  "type": "module",
+  "bin": {
+    "mint-compiler": "./bin/mint-compiler.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates"
+  ],
+  "scripts": {
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test": "node test/build.test.js"
+  },
+  "keywords": [
+    "turboWarp",
+    "scratch",
+    "extension",
+    "compiler",
+    "bundler"
+  ],
+  "author": "Boswell Fox",
+  "license": "LGPL-2.1",
+  "dependencies": {
+    "acorn": "^8.17.0",
+    "commander": "^12.1.0",
+    "jsonc-parser": "^3.3.1",
+    "prettier": "^3.3.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "globals": "^15.9.0"
+  }
+}
