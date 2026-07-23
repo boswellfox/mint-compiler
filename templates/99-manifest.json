@@ -1,0 +1,18 @@
+{
+  // The class name for the extension (PascalCase)
+  "class": "MyExtension",
+  // Display name of the extension
+  "name": "My Extension",
+  // Unique identifier for the extension
+  "id": "myextension",
+  // License identifier (SPDX format)
+  "license": "LGPL-2.1",
+  // List of current authors
+  "authors": [{ "name": "Author Name", "url": "https://example.com" }],
+  // List of original authors (if forked/derived work)
+  "originalAuthors": [],
+  // Brief description of what the extension does
+  "description": "A description of the extension.",
+  // Semantic version string
+  "version": "0.1.0"
+}
