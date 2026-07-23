@@ -16,7 +16,7 @@
     "lint:fix": "eslint src/ --fix",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
-    "test": "node bin/mint-compiler.js build"
+    "test": "node test/build.test.js"
   },
   "keywords": [
     "turboWarp",
@@ -25,9 +25,10 @@
     "compiler",
     "bundler"
   ],
-  "author": "",
+  "author": "Boswell Fox",
   "license": "LGPL-2.1",
   "dependencies": {
+    "acorn": "^8.17.0",
     "commander": "^12.1.0",
     "jsonc-parser": "^3.3.1",
     "prettier": "^3.3.3"

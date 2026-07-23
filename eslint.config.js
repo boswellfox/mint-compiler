@@ -9,6 +9,7 @@ export default [
       sourceType: "module",
       globals: {
         ...globals.node,
+        Scratch: "readonly",
       },
     },
     rules: {
@@ -22,6 +23,6 @@ export default [
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "templates/"],
+    ignores: ["dist/", "node_modules/", "templates/**/*.json"],
   },
 ];

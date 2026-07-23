@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
+import * as acorn from "acorn";
 
 export function extractSourceFiles(entryPath) {
   const entryDir = dirname(entryPath);
@@ -25,84 +26,107 @@ export function extractSourceFiles(entryPath) {
 
   const functions = extractTopLevelFunctions(entryCode);
 
+  const visited = new Set();
   const importedFunctions = [];
-  for (const imp of imports) {
-    const resolvedPath = join(entryDir, imp.modulePath);
+
+  function collectFromModule(modulePath, requestedNames, baseDir) {
+    const resolvedPath = join(baseDir, modulePath);
+    if (visited.has(resolvedPath)) {
+      return;
+    }
+    visited.add(resolvedPath);
+
     const moduleCode = readFileSync(resolvedPath, "utf-8");
     const moduleFunctions = extractTopLevelFunctions(moduleCode);
 
     for (const fn of moduleFunctions) {
-      if (imp.names.includes(fn.name)) {
+      if (requestedNames.includes(fn.name)) {
         importedFunctions.push(fn);
       }
     }
+
+    const moduleDir = dirname(resolvedPath);
+    const innerImportRegex =
+      /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["'];?/g;
+    let innerMatch;
+    while ((innerMatch = innerImportRegex.exec(moduleCode)) !== null) {
+      const innerNames = innerMatch[1]
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      const innerPath = innerMatch[2];
+      if (innerPath.startsWith(".")) {
+        collectFromModule(innerPath, innerNames, moduleDir);
+      }
+    }
+  }
+
+  for (const imp of imports) {
+    collectFromModule(imp.modulePath, imp.names, entryDir);
   }
 
   return { functions, importedFunctions };
 }
 
 function extractTopLevelFunctions(code) {
+  let ast;
+  try {
+    ast = acorn.parse(code, {
+      ecmaVersion: 2022,
+      sourceType: "module",
+    });
+  } catch {
+    return [];
+  }
+
   const functions = [];
 
-  const funcDeclRegex = /(?:export\s+)?function\s+(\w+)\s*\([^)]*\)\s*\{/g;
-  let match;
-  while ((match = funcDeclRegex.exec(code)) !== null) {
-    const name = match[1];
-    const startIndex = match.index;
-    const bodyStart = code.indexOf("{", startIndex);
-    const body = extractBalancedBody(code, bodyStart);
-    functions.push({ name, body });
+  for (const node of ast.body) {
+    if (node.type === "FunctionDeclaration" && node.id) {
+      const paramSource =
+        node.params.length > 0
+          ? code.slice(
+              node.params[0].start,
+              node.params[node.params.length - 1].end,
+            )
+          : "";
+      const body = code.slice(
+        node.body.body[0] ? node.body.body[0].start : node.body.start + 1,
+        node.body.end - 1,
+      );
+      functions.push({
+        name: node.id.name,
+        body,
+        params: paramSource,
+      });
+    }
+
+    if (
+      node.type === "ExportNamedDeclaration" &&
+      node.declaration?.type === "FunctionDeclaration" &&
+      node.declaration.id
+    ) {
+      const fn = node.declaration;
+      const paramSource =
+        fn.params.length > 0
+          ? code.slice(fn.params[0].start, fn.params[fn.params.length - 1].end)
+          : "";
+      const body =
+        fn.body.body.length > 0
+          ? code.slice(
+              fn.body.body[0].start,
+              fn.body.body[fn.body.body.length - 1].end,
+            )
+          : "";
+      functions.push({
+        name: fn.id.name,
+        body,
+        params: paramSource,
+      });
+    }
   }
 
   return functions;
-}
-
-function extractBalancedBody(code, startIndex) {
-  let depth = 0;
-  let inString = false;
-  let stringChar = "";
-  let inTemplate = false;
-
-  for (let i = startIndex; i < code.length; i++) {
-    const ch = code[i];
-    const prev = i > 0 ? code[i - 1] : "";
-
-    if (inString) {
-      if (ch === stringChar && prev !== "\\") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (inTemplate) {
-      if (ch === "`" && prev !== "\\") {
-        inTemplate = false;
-      }
-      continue;
-    }
-
-    if (ch === '"' || ch === "'") {
-      inString = true;
-      stringChar = ch;
-      continue;
-    }
-
-    if (ch === "`") {
-      inTemplate = true;
-      continue;
-    }
-
-    if (ch === "{") {
-      depth++;
-    } else if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        return code.slice(startIndex + 1, i);
-      }
-    }
-  }
-
-  return code.slice(startIndex + 1);
 }
 
 export function buildClassSource(functions, importedFunctions, className) {
@@ -113,7 +137,10 @@ export function buildClassSource(functions, importedFunctions, className) {
   }
 
   const methods = allFunctions
-    .map((fn) => `    ${fn.name}() {${fn.body}    }`)
+    .map((fn) => {
+      const params = fn.params || "";
+      return `    ${fn.name}(${params}) {${fn.body}    }`;
+    })
     .join("\n\n");
 
   return `class ${className} {\n${methods}\n}`;

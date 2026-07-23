@@ -48,7 +48,7 @@ Compiles your extension to `dist/<id>@<version>.js`.
 
 ## Project Structure
 
-```
+```text
 your-extension/
 ├── src/
 │   ├── 99-manifest.json    # Extension metadata
@@ -147,5 +147,5 @@ npm run lint          # Run ESLint
 npm run lint:fix      # Run ESLint with auto-fix
 npm run format        # Format code with Prettier
 npm run format:check  # Check formatting
-npm test              # Build the extension
+npm test              # Run tests
 ```

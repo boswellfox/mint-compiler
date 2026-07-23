@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import prettier from "prettier";
 import { readManifest } from "../utils/manifest.js";
 import { getGitRemoteUrl } from "../utils/git.js";
@@ -74,6 +74,12 @@ ${classCode}
   }
 
   const outputFile = join(distDir, `${manifest.id}@${manifest.version}.js`);
+  const resolvedOutput = resolve(outputFile);
+  const resolvedDist = resolve(distDir);
+  if (!resolvedOutput.startsWith(resolvedDist + "/")) {
+    console.error("Error: Output path escapes the dist directory.");
+    process.exit(1);
+  }
   writeFileSync(outputFile, formatted, "utf-8");
 
   console.log(`\nBuild complete! Output: ${outputFile}`);

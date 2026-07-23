@@ -1,7 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,16 +32,6 @@ export async function initCommand() {
       writeFileSync(destPath, content, "utf-8");
       console.log(`Created ${file}`);
     }
-  }
-
-  console.log("\nInstalling dependencies...");
-  try {
-    execSync("npm install", { stdio: "inherit", cwd: process.cwd() });
-    console.log("\nDependencies installed successfully.");
-  } catch {
-    console.error(
-      "\nFailed to install dependencies. Please run 'npm install' manually.",
-    );
   }
 
   console.log(
