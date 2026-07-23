@@ -11,6 +11,9 @@
     "src",
     "templates"
   ],
+  "repository": {
+    "url": "https://github.com/boswellfox/mint-compiler"
+  },
   "scripts": {
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
