@@ -7,65 +7,146 @@ export function extractSourceFiles(entryPath) {
   const entryCode = readFileSync(entryPath, "utf-8");
 
   const importedNames = new Set();
-  const imports = [];
+  const importsByModule = new Map();
 
-  const importRegex = /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["'];?/g;
-  let match;
-  while ((match = importRegex.exec(entryCode)) !== null) {
-    const names = match[1]
-      .split(",")
-      .map((n) => n.trim())
-      .filter(Boolean);
-    const modulePath = match[2];
+  let entryAst;
+  try {
+    entryAst = acorn.parse(entryCode, {
+      ecmaVersion: 2022,
+      sourceType: "module",
+    });
+  } catch {
+    entryAst = null;
+  }
 
-    for (const name of names) {
-      importedNames.add(name);
+  if (entryAst) {
+    for (const node of entryAst.body) {
+      if (node.type === "ImportDeclaration") {
+        const modulePath = node.source.value;
+        if (!importsByModule.has(modulePath)) {
+          importsByModule.set(modulePath, {
+            exportedNames: new Set(),
+            localNameMap: new Map(),
+          });
+        }
+        const entry = importsByModule.get(modulePath);
+        for (const spec of node.specifiers) {
+          const localName = spec.local.name;
+          let exportedName;
+          if (spec.type === "ImportSpecifier") {
+            exportedName = spec.imported.name;
+          } else if (spec.type === "ImportDefaultSpecifier") {
+            exportedName = "default";
+          } else if (spec.type === "ImportNamespaceSpecifier") {
+            exportedName = "*";
+          }
+          importedNames.add(localName);
+          entry.exportedNames.add(exportedName);
+          entry.localNameMap.set(exportedName, localName);
+        }
+      }
     }
-    imports.push({ names, modulePath });
   }
 
   const functions = extractTopLevelFunctions(entryCode);
 
-  const visited = new Set();
+  const processedNames = new Map();
   const importedFunctions = [];
 
-  function collectFromModule(modulePath, requestedNames, baseDir) {
+  function collectFromModule(
+    modulePath,
+    requestedNames,
+    baseDir,
+    localNameMap,
+  ) {
     const resolvedPath = join(baseDir, modulePath);
-    if (visited.has(resolvedPath)) {
+    const alreadyProcessed = processedNames.get(resolvedPath) || new Set();
+    const newNames = requestedNames.filter((n) => !alreadyProcessed.has(n));
+    if (newNames.length === 0) {
       return;
     }
-    visited.add(resolvedPath);
 
     const moduleCode = readFileSync(resolvedPath, "utf-8");
     const moduleFunctions = extractTopLevelFunctions(moduleCode);
 
     for (const fn of moduleFunctions) {
-      if (requestedNames.includes(fn.name)) {
-        importedFunctions.push(fn);
+      if (newNames.includes(fn.name)) {
+        const localName = localNameMap.get(fn.name) || fn.name;
+        importedFunctions.push({ ...fn, name: localName });
       }
     }
 
+    const updated = new Set(alreadyProcessed);
+    for (const n of newNames) {
+      updated.add(n);
+    }
+    processedNames.set(resolvedPath, updated);
+
     const moduleDir = dirname(resolvedPath);
-    const innerImportRegex =
-      /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["'];?/g;
-    let innerMatch;
-    while ((innerMatch = innerImportRegex.exec(moduleCode)) !== null) {
-      const innerNames = innerMatch[1]
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const innerPath = innerMatch[2];
-      if (innerPath.startsWith(".")) {
-        collectFromModule(innerPath, innerNames, moduleDir);
+    let moduleAst;
+    try {
+      moduleAst = acorn.parse(moduleCode, {
+        ecmaVersion: 2022,
+        sourceType: "module",
+      });
+    } catch {
+      return;
+    }
+
+    for (const node of moduleAst.body) {
+      if (
+        node.type === "ImportDeclaration" &&
+        node.source.value.startsWith(".")
+      ) {
+        const innerPath = node.source.value;
+        const innerMapping = new Map();
+        const innerNames = [];
+        for (const spec of node.specifiers) {
+          let innerExportedName;
+          if (spec.type === "ImportSpecifier") {
+            innerExportedName = spec.imported.name;
+          } else if (spec.type === "ImportDefaultSpecifier") {
+            innerExportedName = "default";
+          } else if (spec.type === "ImportNamespaceSpecifier") {
+            innerExportedName = "*";
+          }
+          innerMapping.set(innerExportedName, spec.local.name);
+          innerNames.push(innerExportedName);
+        }
+        collectFromModule(innerPath, innerNames, moduleDir, innerMapping);
       }
     }
   }
 
-  for (const imp of imports) {
-    collectFromModule(imp.modulePath, imp.names, entryDir);
+  for (const [modulePath, info] of importsByModule) {
+    collectFromModule(
+      modulePath,
+      [...info.exportedNames],
+      entryDir,
+      info.localNameMap,
+    );
   }
 
   return { functions, importedFunctions };
+}
+
+function extractFunctionInfo(fnNode, code) {
+  const name = fnNode.id.name;
+  const params =
+    fnNode.params.length > 0
+      ? code.slice(
+          fnNode.params[0].start,
+          fnNode.params[fnNode.params.length - 1].end,
+        )
+      : "";
+  const body =
+    fnNode.body.body.length > 0
+      ? code.slice(
+          fnNode.body.body[0].start,
+          fnNode.body.body[fnNode.body.body.length - 1].end,
+        )
+      : "";
+  return { name, params, body };
 }
 
 function extractTopLevelFunctions(code) {
@@ -83,22 +164,7 @@ function extractTopLevelFunctions(code) {
 
   for (const node of ast.body) {
     if (node.type === "FunctionDeclaration" && node.id) {
-      const paramSource =
-        node.params.length > 0
-          ? code.slice(
-              node.params[0].start,
-              node.params[node.params.length - 1].end,
-            )
-          : "";
-      const body = code.slice(
-        node.body.body[0] ? node.body.body[0].start : node.body.start + 1,
-        node.body.end - 1,
-      );
-      functions.push({
-        name: node.id.name,
-        body,
-        params: paramSource,
-      });
+      functions.push(extractFunctionInfo(node, code));
     }
 
     if (
@@ -106,23 +172,7 @@ function extractTopLevelFunctions(code) {
       node.declaration?.type === "FunctionDeclaration" &&
       node.declaration.id
     ) {
-      const fn = node.declaration;
-      const paramSource =
-        fn.params.length > 0
-          ? code.slice(fn.params[0].start, fn.params[fn.params.length - 1].end)
-          : "";
-      const body =
-        fn.body.body.length > 0
-          ? code.slice(
-              fn.body.body[0].start,
-              fn.body.body[fn.body.body.length - 1].end,
-            )
-          : "";
-      functions.push({
-        name: fn.id.name,
-        body,
-        params: paramSource,
-      });
+      functions.push(extractFunctionInfo(node.declaration, code));
     }
   }
 
